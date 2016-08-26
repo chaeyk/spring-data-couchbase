@@ -589,15 +589,15 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
         try {
           switch (persistType) {
             case SAVE:
-              if (!versionPresent) {
-                //No version field - no cas
-                storedDoc = client.upsert(doc, persistTo, replicateTo);
-              } else if (existingDocument) {
+              /*
+               * FIXED execute upsert when version property is missing or version value is not set
+               */
+              if (existingDocument) {
                 //Updating existing document with cas
                 storedDoc = client.replace(doc, persistTo, replicateTo);
               } else {
-                //Creating new document
-                storedDoc = client.insert(doc, persistTo, replicateTo);
+                //No version field - no cas
+                storedDoc = client.upsert(doc, persistTo, replicateTo);
               }
               break;
             case UPDATE:
@@ -638,9 +638,17 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
       execute(new BucketCallback<Boolean>() {
         @Override
         public Boolean doInBucket() throws InterruptedException, ExecutionException {
-          RawJsonDocument deletedDoc = client.remove((String) objectToRemove, persistTo, replicateTo,
-              RawJsonDocument.class);
-          return deletedDoc != null;
+          /*
+           * FIXED handle exception as the same way with doPersist()
+           */
+          try {
+            RawJsonDocument deletedDoc = client.remove((String) objectToRemove, persistTo, replicateTo,
+                RawJsonDocument.class);
+            return deletedDoc != null;
+          } catch (Exception e) {
+            handleWriteResultError("Delete document failed: " + e.getMessage(), e);
+            return false; //this could be skipped if WriteResultChecking.EXCEPTION
+          }
         }
       });
       maybeEmitEvent(new AfterDeleteEvent<Object>(objectToRemove));
@@ -653,9 +661,17 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
     execute(new BucketCallback<Boolean>() {
       @Override
       public Boolean doInBucket() {
-        RawJsonDocument deletedDoc = client.remove(converted.getId(), persistTo, replicateTo
-            , RawJsonDocument.class);
-        return deletedDoc != null;
+        /*
+         * FIXED handle exception as the same way with doPersist()
+         */
+        try {
+          RawJsonDocument deletedDoc = client.remove((String) objectToRemove, persistTo, replicateTo,
+              RawJsonDocument.class);
+          return deletedDoc != null;
+        } catch (Exception e) {
+          handleWriteResultError("Delete document failed: " + e.getMessage(), e);
+          return false; //this could be skipped if WriteResultChecking.EXCEPTION
+        }
       }
     });
     maybeEmitEvent(new AfterDeleteEvent<Object>(objectToRemove));
