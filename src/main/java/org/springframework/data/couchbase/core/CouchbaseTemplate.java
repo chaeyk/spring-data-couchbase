@@ -653,15 +653,20 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
       return;
     }
 
+    final ConvertingPropertyAccessor accessor = getPropertyAccessor(objectToRemove);
+    final CouchbasePersistentEntity<?> persistentEntity = mappingContext.getPersistentEntity(objectToRemove.getClass());
+    final CouchbasePersistentProperty versionProperty = persistentEntity.getVersionProperty();
+    final Long version = versionProperty != null ? accessor.getProperty(versionProperty, Long.class) : null;
+
     final CouchbaseDocument converted = new CouchbaseDocument();
     converter.write(objectToRemove, converted);
 
     execute(new BucketCallback<Boolean>() {
       @Override
       public Boolean doInBucket() {
+        Document<String> doc = encodeAndWrap(converted, version);
         try {
-          RawJsonDocument deletedDoc = client.remove(converted.getId(), persistTo, replicateTo
-              , RawJsonDocument.class);
+          Document<String> deletedDoc = client.remove(doc, persistTo, replicateTo);
           return deletedDoc != null;
         } catch (Exception e) {
           handleWriteResultError("Delete document failed: " + e.getMessage(), e);
