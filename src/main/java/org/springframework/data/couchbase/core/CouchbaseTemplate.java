@@ -81,7 +81,7 @@ import org.springframework.data.mapping.model.ConvertingPropertyAccessor;
  * @author Michael Nitschinger
  * @author Oliver Gierke
  * @author Simon Baslé
- * @author YoungGu Chae
+ * @author Young-Gu Chae
  */
 public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventPublisherAware {
 
