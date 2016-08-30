@@ -81,6 +81,7 @@ import org.springframework.data.mapping.model.ConvertingPropertyAccessor;
  * @author Michael Nitschinger
  * @author Oliver Gierke
  * @author Simon Baslé
+ * @author Young-Gu Chae
  */
 public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventPublisherAware {
 
@@ -589,15 +590,15 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
         try {
           switch (persistType) {
             case SAVE:
-              /*
-               * FIXED execute upsert when version property is missing or version value is not set
-               */
-              if (existingDocument) {
+              if (!versionPresent) {
+                //No version field - no cas
+                storedDoc = client.upsert(doc, persistTo, replicateTo);
+              } else if (existingDocument) {
                 //Updating existing document with cas
                 storedDoc = client.replace(doc, persistTo, replicateTo);
               } else {
-                //No version field - no cas
-                storedDoc = client.upsert(doc, persistTo, replicateTo);
+                //Creating new document
+                storedDoc = client.insert(doc, persistTo, replicateTo);
               }
               break;
             case UPDATE:
@@ -638,9 +639,6 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
       execute(new BucketCallback<Boolean>() {
         @Override
         public Boolean doInBucket() throws InterruptedException, ExecutionException {
-          /*
-           * FIXED handle exception as the same way with doPersist()
-           */
           try {
             RawJsonDocument deletedDoc = client.remove((String) objectToRemove, persistTo, replicateTo,
                 RawJsonDocument.class);
@@ -661,12 +659,9 @@ public class CouchbaseTemplate implements CouchbaseOperations, ApplicationEventP
     execute(new BucketCallback<Boolean>() {
       @Override
       public Boolean doInBucket() {
-        /*
-         * FIXED handle exception as the same way with doPersist()
-         */
         try {
-          RawJsonDocument deletedDoc = client.remove((String) objectToRemove, persistTo, replicateTo,
-              RawJsonDocument.class);
+          RawJsonDocument deletedDoc = client.remove(converted.getId(), persistTo, replicateTo
+              , RawJsonDocument.class);
           return deletedDoc != null;
         } catch (Exception e) {
           handleWriteResultError("Delete document failed: " + e.getMessage(), e);
